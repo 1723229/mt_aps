@@ -16,6 +16,7 @@ class CrewShiftPlanner:
         work_calendar: List[str],
         work_week: Dict[str, int],
         all_crews: Set[str],
+        indices=None,
     ):
         """Initialize planner.
         
@@ -23,13 +24,23 @@ class CrewShiftPlanner:
             work_calendar: List of work dates
             work_week: Mapping from date to week number
             all_crews: Set of all crew codes
+            indices: Schedule indices (optional, for region awareness)
         """
         self.work_calendar = work_calendar
         self.work_week = work_week
         self.all_crews = all_crews
+        self.indices = indices
         
         # Result: crew -> date -> shift
         self.crew_shift_plan: Dict[str, Dict[str, str]] = {}
+        
+        # C类区域（新包装B区）双班配置
+        # 030205: pack05/pack11必须分别在不同班次
+        # 030206: pack06/pack13必须分别在不同班次
+        self.region_c_pairs = [
+            ('pack05', 'pack11'),  # 030205线的两个班组
+            ('pack06', 'pack13'),  # 030206线的两个班组
+        ]
     
     def plan_shifts(self) -> Dict[str, Dict[str, str]]:
         """Plan shift assignments for all crews.
@@ -38,6 +49,7 @@ class CrewShiftPlanner:
         - Each crew starts with 'early' in week 1
         - Within a week, crew stays on same shift
         - When week changes, crew alternates shift
+        - SPECIAL: C类区域（新包装B区）强制双班配置
         
         Returns:
             crew_shift_plan: crew -> date -> 'early' or 'middle'
@@ -45,8 +57,42 @@ class CrewShiftPlanner:
         # Get unique weeks in order
         weeks = sorted(set(self.work_week.values()))
         
-        # Plan for each crew
+        # Track assigned crews to avoid conflicts
+        assigned_crews = set()
+        
+        # FIRST: Handle C类区域双班配置（强制）
+        for crew1, crew2 in self.region_c_pairs:
+            if crew1 in self.all_crews and crew2 in self.all_crews:
+                # 强制：crew1始终早班，crew2始终中班（确保双班）
+                # crew1: 早班
+                crew1_plan = {}
+                current_shift = 'early'
+                week_shift = {}
+                for week in weeks:
+                    week_shift[week] = current_shift
+                    # 跨周切换
+                    current_shift = 'middle' if current_shift == 'early' else 'early'
+                
+                for date in self.work_calendar:
+                    week = self.work_week[date]
+                    crew1_plan[date] = week_shift[week]
+                
+                self.crew_shift_plan[crew1] = crew1_plan
+                assigned_crews.add(crew1)
+                
+                # crew2: 与crew1相反的班次（确保双班）
+                crew2_plan = {}
+                for date in self.work_calendar:
+                    crew2_plan[date] = 'middle' if crew1_plan[date] == 'early' else 'early'
+                
+                self.crew_shift_plan[crew2] = crew2_plan
+                assigned_crews.add(crew2)
+        
+        # SECOND: Plan for remaining crews
         for crew in self.all_crews:
+            if crew in assigned_crews:
+                continue  # Already assigned in C类区域
+            
             crew_plan = {}
             
             # Alternate starting shift per crew for diversity

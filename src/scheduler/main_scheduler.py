@@ -64,6 +64,7 @@ class MainScheduler:
             work_calendar=request.workCalendar,
             work_week=request.workWeek,
             all_crews=self.indices.all_crews,
+            indices=self.indices,
         )
         
         self.changeover_handler = ChangeoverHandler(self.indices)
@@ -80,12 +81,13 @@ class MainScheduler:
     def schedule(self) -> ScheduleState:
         """Execute full scheduling algorithm.
         
-        Optimized 5 Phases:
+        Optimized 6 Phases:
         1. Plan crew shifts (BC-11)
         2. Schedule exclusive products FIRST (BC-06 - must complete)
         3. Schedule priority products
         4. Schedule remaining products (BC-07 - all must be scheduled)
         5. Handle changeovers and optimization
+        6. Fill with zero-quantity products (BC-04, BC-08)
         
         Returns:
             Final schedule state
@@ -112,6 +114,10 @@ class MainScheduler:
         # Phase 5: Optimization and changeovers
         logger.info("Phase 5: Handling changeovers...")
         self._phase5_handle_changeovers()
+        
+        # Phase 6: Fill gaps with zero-quantity products (BC-04, BC-08)
+        logger.info("Phase 6: Filling gaps with zero-quantity products...")
+        self._phase6_fill_with_zero_products()
         
         logger.info(f"Scheduling complete. Utilization: {self.state.get_capacity_utilization():.2%}")
         logger.info(f"Products scheduled: {len(self.state.get_products_produced_at_least_once())}/{len(self.state.products)}")
@@ -395,4 +401,177 @@ class MainScheduler:
             
         except ValueError as e:
             logger.warning(f"Failed to add changeover: {e}")
+    
+    def _phase6_fill_with_zero_products(self):
+        """Phase 6: Fill empty slots with zero-quantity products.
+        
+        根据需求5.5节：
+        - 当产线所有有计划产品已完成
+        - 班组无法释放到其他产线
+        - 班组必须排产（BC-04约束）
+        - 安排计划量为0的产品占位
+        
+        选择规则：
+        1. 必须是该产线配置的产品
+        2. 选择该产线计划量瓶数最大的产品（即使已完成）
+        3. 若瓶数相同，选择 productLineWeight 值最小的
+        """
+        filled_count = 0
+        
+        # Iterate through all dates and shifts
+        for date in self.request.workCalendar:
+            for shift in ['early', 'middle']:
+                # Get crews that should work this shift
+                expected_crews = {
+                    crew_code: expected_shift
+                    for crew_code, expected_shift in self.state.crew_shift_plan.items()
+                    if expected_shift.get(date) == shift
+                }
+                
+                # Check which crews are already assigned
+                assigned_crews = set()
+                for line_code in self.indices.all_lines:
+                    records = self.state.get_slot_assignment(line_code, date, shift)
+                    for record in records:
+                        assigned_crews.add(record.crew_code)
+                
+                # Find crews that should work but aren't assigned
+                unassigned_crews = set(expected_crews.keys()) - assigned_crews
+                
+                for crew_code in unassigned_crews:
+                    # Find lines this crew can work on
+                    crew_settings = self.indices.lines_for_crew.get(crew_code, [])
+                    possible_lines = [setting.lineCode for setting in crew_settings]
+                    
+                    for line_code in possible_lines:
+                        # Check if line is available (not forbidden, not already occupied)
+                        if not self.state.is_slot_available(line_code, date, shift):
+                            continue
+                        
+                        # Check if all planned products on this line are complete
+                        # Build line_products by checking all products
+                        line_products = []
+                        for product_code in self.indices.all_products:
+                            if product_code in self.indices.lines_for_product:
+                                line_settings = self.indices.lines_for_product[product_code]
+                                if any(s.lineCode == line_code for s in line_settings):
+                                    line_products.append(product_code)
+                        
+                        all_complete = True
+                        for product_code in line_products:
+                            product = self.indices.products_by_code[product_code]
+                            if product.bottleTotal > 0 and self.state.product_remaining.get(product_code, 0) > 0:
+                                all_complete = False
+                                break
+                        
+                        if not all_complete:
+                            continue
+                        
+                        # Select zero-quantity product for this line
+                        # IMPORTANT: Must not violate BC-09 continuity
+                        zero_product = self._select_zero_quantity_product(line_code, date, shift)
+                        if not zero_product:
+                            continue
+                        
+                        # Get standard capacity for this product on this line
+                        setting = self.indices.get_line_setting(line_code, zero_product)
+                        if not setting:
+                            continue
+                        
+                        standard_capacity = self.capacity_optimizer.get_standard_capacity(setting)
+                        
+                        # Add zero-quantity production (quantity = 0)
+                        try:
+                            self.state.add_production(
+                                line_code=line_code,
+                                date=date,
+                                shift=shift,
+                                product_code=zero_product,
+                                crew_code=crew_code,
+                                quantity=0,  # Zero quantity!
+                                standard_capacity=standard_capacity,
+                                is_changeover=False,
+                                changeover_sequence=0,
+                            )
+                            filled_count += 1
+                            logger.info(f"Filled gap: {line_code} {date} {shift} with {zero_product} (crew {crew_code}, qty=0)")
+                            break  # Crew is now assigned
+                        except ValueError as e:
+                            logger.debug(f"Failed to fill gap: {e}")
+                            continue
+        
+        logger.info(f"Filled {filled_count} gaps with zero-quantity products")
+    
+    def _select_zero_quantity_product(self, line_code: str, date: str, shift: str) -> str:
+        """Select a zero-quantity product for a line.
+        
+        选择规则（需求5.5.1 + BC-09保护）：
+        1. 必须是该产线配置的产品
+        2. 不能是之前在该产线生产过的产品（避免违反BC-09连续性）
+        3. 选择该产线计划量瓶数最大的产品
+        4. 若瓶数相同，选择 productLineWeight 值最小的
+        
+        Args:
+            line_code: Line code
+            date: Date
+            shift: Shift
+        
+        Returns:
+            Product code to use for zero-quantity production
+        """
+        # Build line_products by checking all products
+        line_products = []
+        for product_code in self.indices.all_products:
+            if product_code in self.indices.lines_for_product:
+                line_settings = self.indices.lines_for_product[product_code]
+                if any(s.lineCode == line_code for s in line_settings):
+                    line_products.append(product_code)
+        
+        if not line_products:
+            return None
+        
+        # Get products already produced on this line (to avoid BC-09 violation)
+        products_on_line = set()
+        for record in self.state.records:
+            if record.line_code == line_code:
+                products_on_line.add(record.product_code)
+        
+        # Get all line-product settings for this line
+        candidates = []
+        
+        for product_code in line_products:
+            # BC-09 PROTECTION: Skip products already produced on this line
+            if product_code in products_on_line:
+                continue
+            
+            product = self.indices.products_by_code.get(product_code)
+            if not product:
+                continue
+            
+            # Find the setting for this line-product combination
+            settings = self.indices.lines_for_product.get(product_code, [])
+            for setting in settings:
+                if setting.lineCode == line_code:
+                    candidates.append({
+                        'product_code': product_code,
+                        'bottle_total': product.bottleTotal,
+                        'product_line_weight': setting.productLineWeight,
+                    })
+                    break
+        
+        if not candidates:
+            # Fallback: if no unused products, use current line product if available
+            current_product = self.state.line_current_product.get(line_code)
+            if current_product:
+                logger.debug(f"Using current product {current_product} for zero-quantity on {line_code} (all products used)")
+                return current_product
+            return None
+        
+        # Sort by: bottleTotal desc, productLineWeight asc
+        candidates.sort(key=lambda x: (-x['bottle_total'], x['product_line_weight']))
+        
+        selected = candidates[0]['product_code']
+        logger.debug(f"Selected zero-quantity product for {line_code}: {selected} (bottleTotal={candidates[0]['bottle_total']})")
+        
+        return selected
 

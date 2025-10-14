@@ -100,9 +100,13 @@ class ScheduleState:
         is_changeover: bool = False,
         changeover_sequence: int = 0,
     ) -> ProductionRecord:
-        """Add a production record to the schedule."""
-        # Validate
-        if quantity > self.product_remaining.get(product_code, 0):
+        """Add a production record to the schedule.
+        
+        Args:
+            quantity: Production quantity (can be 0 for placeholder shifts)
+        """
+        # Validate (allow quantity=0 for placeholder shifts)
+        if quantity > 0 and quantity > self.product_remaining.get(product_code, 0):
             raise ValueError(
                 f"Quantity {quantity} exceeds remaining {self.product_remaining[product_code]} "
                 f"for product {product_code}"

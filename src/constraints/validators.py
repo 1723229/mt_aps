@@ -30,13 +30,18 @@ def validate_crew_single_shift(state: ScheduleState) -> tuple[bool, List[str]]:
 def validate_product_continuity(state: ScheduleState, indices) -> tuple[bool, List[str]]:
     """Validate BC-09: Same product on same line must be continuous.
     
-    A product cannot be interrupted and then resumed on the same line
-    (except by non-working days).
+    A product cannot be interrupted and then resumed on the same line, except:
+    1. Non-working days (gaps in work_calendar)
+    2. Products with priority constraints (product_priority) - 
+       they can be discontinuous across different date periods
     
     Returns:
         (is_valid, error_messages)
     """
     errors = []
+    
+    # Get products with priority constraints (they can be discontinuous)
+    priority_products = getattr(indices, 'priority_products', set())
     
     # Track product production periods on each line
     line_product_periods: Dict[str, Dict[str, List[str]]] = {}
@@ -61,6 +66,10 @@ def validate_product_continuity(state: ScheduleState, indices) -> tuple[bool, Li
         for product, dates in products.items():
             if len(dates) <= 1:
                 continue  # Single date, no continuity issue
+            
+            # EXCEPTION: Products with priority constraints can be discontinuous
+            if product in priority_products:
+                continue
             
             sorted_dates = sorted(dates)
             

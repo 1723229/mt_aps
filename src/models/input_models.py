@@ -201,6 +201,15 @@ class ScheduleIndices:
                 if constraint.constraintType not in self.constraints_by_type:
                     self.constraints_by_type[constraint.constraintType] = []
                 self.constraints_by_type[constraint.constraintType].append(constraint)
+        
+        # Priority products (for BC-09 exception)
+        self.priority_products: Set[str] = set()
+        priority_constraints = self.constraints_by_type.get('product_priority', [])
+        for constraint in priority_constraints:
+            if hasattr(constraint, 'constraintValue') and constraint.constraintValue:
+                for product_constraint in constraint.constraintValue:
+                    if isinstance(product_constraint, dict) and 'productCode' in product_constraint:
+                        self.priority_products.add(product_constraint['productCode'])
     
     def get_line_setting(self, line_code: str, product_code: str) -> Optional[LineProductSetting]:
         """Get line-product setting if exists."""
