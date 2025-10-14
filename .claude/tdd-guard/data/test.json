@@ -1,146 +1,121 @@
 {
   "testModules": [
     {
-      "moduleId": "tests/test_constraints.py",
+      "moduleId": "tests/integration/test_reference_case.py",
       "tests": [
         {
-          "name": "test_valid_combination",
-          "fullName": "tests/test_constraints.py::TestLineProductCrewBinding::test_valid_combination",
+          "name": "test_reference_case",
+          "fullName": "tests/integration/test_reference_case.py::test_reference_case",
           "state": "passed"
         },
         {
-          "name": "test_invalid_combination",
-          "fullName": "tests/test_constraints.py::TestLineProductCrewBinding::test_invalid_combination",
+          "name": "test_all_products_produced",
+          "fullName": "tests/integration/test_reference_case.py::test_all_products_produced",
           "state": "passed"
         },
         {
-          "name": "test_within_plan",
-          "fullName": "tests/test_constraints.py::TestPlanQuantityValidator::test_within_plan",
+          "name": "test_no_overproduction",
+          "fullName": "tests/integration/test_reference_case.py::test_no_overproduction",
           "state": "passed"
         },
         {
-          "name": "test_exceeds_plan",
-          "fullName": "tests/test_constraints.py::TestPlanQuantityValidator::test_exceeds_plan",
-          "state": "passed"
-        },
-        {
-          "name": "test_get_remaining",
-          "fullName": "tests/test_constraints.py::TestPlanQuantityValidator::test_get_remaining",
-          "state": "passed"
-        },
-        {
-          "name": "test_get_cumulative",
-          "fullName": "tests/test_constraints.py::TestPlanQuantityValidator::test_get_cumulative",
-          "state": "passed"
-        },
-        {
-          "name": "test_forbidden_line",
-          "fullName": "tests/test_constraints.py::TestLineForbidTimeValidator::test_forbidden_line",
-          "state": "passed"
-        },
-        {
-          "name": "test_allowed_line",
-          "fullName": "tests/test_constraints.py::TestLineForbidTimeValidator::test_allowed_line",
-          "state": "passed"
-        },
-        {
-          "name": "test_is_line_forbidden",
-          "fullName": "tests/test_constraints.py::TestLineForbidTimeValidator::test_is_line_forbidden",
-          "state": "passed"
-        },
-        {
-          "name": "test_priority_period_detection",
-          "fullName": "tests/test_constraints.py::TestProductPriorityValidator::test_priority_period_detection",
-          "state": "passed"
-        },
-        {
-          "name": "test_production_recording",
-          "fullName": "tests/test_constraints.py::TestProductPriorityValidator::test_production_recording",
+          "name": "test_crew_shift_consistency",
+          "fullName": "tests/integration/test_reference_case.py::test_crew_shift_consistency",
           "state": "passed"
         }
       ]
     },
     {
-      "moduleId": "tests/test_scheduler.py",
+      "moduleId": "tests/unit/test_constraints.py",
       "tests": [
         {
-          "name": "test_parse_input",
-          "fullName": "tests/test_scheduler.py::TestSchedulerIntegration::test_parse_input",
+          "name": "test_crew_single_shift_valid",
+          "fullName": "tests/unit/test_constraints.py::TestConstraintValidators::test_crew_single_shift_valid",
           "state": "passed"
         },
         {
-          "name": "test_scheduler_runs",
-          "fullName": "tests/test_scheduler.py::TestSchedulerIntegration::test_scheduler_runs",
+          "name": "test_capacity_limit_valid",
+          "fullName": "tests/unit/test_constraints.py::TestConstraintValidators::test_capacity_limit_valid",
           "state": "passed"
         },
         {
-          "name": "test_all_dates_scheduled",
-          "fullName": "tests/test_scheduler.py::TestSchedulerIntegration::test_all_dates_scheduled",
+          "name": "test_capacity_limit_overproduction",
+          "fullName": "tests/unit/test_constraints.py::TestConstraintValidators::test_capacity_limit_overproduction",
           "state": "passed"
         },
         {
-          "name": "test_double_shifts_per_date",
-          "fullName": "tests/test_scheduler.py::TestSchedulerIntegration::test_double_shifts_per_date",
+          "name": "test_all_products_scheduled_valid",
+          "fullName": "tests/unit/test_constraints.py::TestConstraintValidators::test_all_products_scheduled_valid",
           "state": "passed"
         },
         {
-          "name": "test_crew_single_shift_per_day",
-          "fullName": "tests/test_scheduler.py::TestSchedulerIntegration::test_crew_single_shift_per_day",
-          "state": "passed"
-        },
-        {
-          "name": "test_quantity_limits",
-          "fullName": "tests/test_scheduler.py::TestSchedulerIntegration::test_quantity_limits",
-          "state": "passed"
-        },
-        {
-          "name": "test_line_product_crew_binding",
-          "fullName": "tests/test_scheduler.py::TestSchedulerIntegration::test_line_product_crew_binding",
-          "state": "passed"
-        },
-        {
-          "name": "test_line_forbidden_times",
-          "fullName": "tests/test_scheduler.py::TestSchedulerIntegration::test_line_forbidden_times",
-          "state": "passed"
-        },
-        {
-          "name": "test_output_csv_generation",
-          "fullName": "tests/test_scheduler.py::TestSchedulerIntegration::test_output_csv_generation",
-          "state": "passed"
-        },
-        {
-          "name": "test_all_products_scheduled",
-          "fullName": "tests/test_scheduler.py::TestSchedulerIntegration::test_all_products_scheduled",
+          "name": "test_all_products_scheduled_missing",
+          "fullName": "tests/unit/test_constraints.py::TestConstraintValidators::test_all_products_scheduled_missing",
           "state": "passed"
         }
       ]
     },
     {
-      "moduleId": "tests/test_validation.py",
+      "moduleId": "tests/unit/test_regions.py",
       "tests": [
         {
-          "name": "test_binding_validator_detects_invalid_combo",
-          "fullName": "tests/test_validation.py::TestConstraintValidation::test_binding_validator_detects_invalid_combo",
+          "name": "test_valid_allocation",
+          "fullName": "tests/unit/test_regions.py::TestOldPackagingRegion::test_valid_allocation",
           "state": "passed"
         },
         {
-          "name": "test_quantity_validator_prevents_overproduction",
-          "fullName": "tests/test_validation.py::TestConstraintValidation::test_quantity_validator_prevents_overproduction",
+          "name": "test_requires_exactly_one_idle",
+          "fullName": "tests/unit/test_regions.py::TestOldPackagingRegion::test_requires_exactly_one_idle",
           "state": "passed"
         },
         {
-          "name": "test_crew_single_shift_prevents_double_assignment",
-          "fullName": "tests/test_validation.py::TestConstraintValidation::test_crew_single_shift_prevents_double_assignment",
+          "name": "test_requires_complete_pairs",
+          "fullName": "tests/unit/test_regions.py::TestOldPackagingRegion::test_requires_complete_pairs",
           "state": "passed"
         },
         {
-          "name": "test_validator_error_messages",
-          "fullName": "tests/test_validation.py::TestConstraintValidation::test_validator_error_messages",
+          "name": "test_valid_flexible_allocation",
+          "fullName": "tests/unit/test_regions.py::TestNewPackagingARegion::test_valid_flexible_allocation",
           "state": "passed"
         },
         {
-          "name": "test_validator_clear_violations",
-          "fullName": "tests/test_validation.py::TestConstraintValidation::test_validator_clear_violations",
+          "name": "test_max_one_idle_line",
+          "fullName": "tests/unit/test_regions.py::TestNewPackagingARegion::test_max_one_idle_line",
+          "state": "passed"
+        },
+        {
+          "name": "test_pack17_not_on_030204",
+          "fullName": "tests/unit/test_regions.py::TestNewPackagingARegion::test_pack17_not_on_030204",
+          "state": "passed"
+        },
+        {
+          "name": "test_requires_both_lines_double",
+          "fullName": "tests/unit/test_regions.py::TestNewPackagingBRegion::test_requires_both_lines_double",
+          "state": "passed"
+        },
+        {
+          "name": "test_no_idle_lines_allowed",
+          "fullName": "tests/unit/test_regions.py::TestNewPackagingBRegion::test_no_idle_lines_allowed",
+          "state": "passed"
+        },
+        {
+          "name": "test_strict_crew_binding",
+          "fullName": "tests/unit/test_regions.py::TestNewPackagingBRegion::test_strict_crew_binding",
+          "state": "passed"
+        },
+        {
+          "name": "test_two_double_two_single",
+          "fullName": "tests/unit/test_regions.py::TestNewPackagingCDRegion::test_two_double_two_single",
+          "state": "passed"
+        },
+        {
+          "name": "test_requires_exactly_two_double",
+          "fullName": "tests/unit/test_regions.py::TestNewPackagingCDRegion::test_requires_exactly_two_double",
+          "state": "passed"
+        },
+        {
+          "name": "test_flexible_crew_assignment",
+          "fullName": "tests/unit/test_regions.py::TestNewPackagingCDRegion::test_flexible_crew_assignment",
           "state": "passed"
         }
       ]
