@@ -282,11 +282,17 @@ class MainScheduler:
     
     def _phase5_handle_changeovers(self):
         """Phase 5: Handle changeovers where products complete early."""
-        # Look for shifts where product completes with capacity remaining
-        for date in self.request.workCalendar:
-            for shift in ['early', 'middle']:
-                for line_code in self.indices.all_lines:
-                    self._try_changeover_for_slot(line_code, date, shift)
+        # First, identify the last occurrence of each product on each line
+        last_occurrence = {}  # (line_code, product_code) -> (date, shift, record)
+        
+        for record in self.state.records:
+            key = (record.line_code, record.product_code)
+            # Keep updating to get the last occurrence (records are ordered by date/shift)
+            last_occurrence[key] = (record.date, record.shift, record)
+        
+        # Try changeover only for these last occurrences
+        for (line_code, product_code), (date, shift, record) in last_occurrence.items():
+            self._try_changeover_for_slot(line_code, date, shift)
     
     def _try_changeover_for_slot(self, line_code: str, date: str, shift: str):
         """Try to add changeover for a shift slot if applicable.
@@ -308,18 +314,14 @@ class MainScheduler:
             return
         
         record = records[0]
-        
-        # Check if product is complete and used less than full capacity
         product_code = record.product_code
-        remaining = self.state.product_remaining.get(product_code, 0)
         
-        # Only changeover if this product is now complete (0 remaining)
-        # and this was the last shift (used < capacity)
-        if remaining > 0:
-            return
-        
+        # Check if this shift used less than full capacity (room for changeover)
         if record.planned_quantity >= record.standard_capacity:
+            logger.debug(f"Skipping changeover on {line_code} {date} {shift}: {product_code} used full capacity ({record.planned_quantity}/{record.standard_capacity})")
             return  # Used full capacity, no room
+        
+        logger.debug(f"Checking changeover on {line_code} {date} {shift}: {product_code} last shift with {record.planned_quantity}/{record.standard_capacity} capacity used")
         
         # Calculate changeover
         setting = self.indices.get_line_setting(line_code, product_code)
@@ -336,32 +338,32 @@ class MainScheduler:
             effective_capacity=effective_capacity,
         )
         
+        logger.debug(f"Changeover capacity calculation: first={first_qty}, second_available={second_available}")
+        
         if second_available <= 0:
+            logger.debug(f"Skipping changeover: no capacity available for second product")
             return
         
-        # Select second product
+        # Build list of products already produced on this line (for BC-09 protection)
+        products_on_line = set()
+        for existing_record in self.state.records:
+            if existing_record.line_code == line_code:
+                products_on_line.add(existing_record.product_code)
+        
+        # Select second product (BC-09 protection built into selection)
         second_product = self.changeover_handler.select_changeover_product(
             line_code=line_code,
             first_product_code=product_code,
             available_capacity=second_available,
             product_remaining=self.state.product_remaining,
+            products_on_line=products_on_line,
         )
         
-        if not second_product:
-            return
+        logger.debug(f"Selected second product for changeover: {second_product}")
         
-        # BC-09 CHECK: Ensure second product hasn't been produced on this line before
-        # (which would violate continuity when we add it here)
-        for existing_record in self.state.records:
-            if (existing_record.line_code == line_code and 
-                existing_record.product_code == second_product):
-                # This product was already produced on this line
-                # Adding it here would violate continuity, so skip
-                logger.debug(
-                    f"Skipping changeover to {second_product} on {line_code} - "
-                    f"would violate BC-09 continuity"
-                )
-                return
+        if not second_product:
+            logger.debug(f"Skipping changeover: no suitable second product found (checked {len(products_on_line)} products already on line)")
+            return
         
         # Get crew from first record
         crew_code = record.crew_code

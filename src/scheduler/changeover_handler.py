@@ -95,6 +95,7 @@ class ChangeoverHandler:
         first_product_code: str,
         available_capacity: int,
         product_remaining: dict,
+        products_on_line: set = None,
     ) -> Optional[str]:
         """Select the best product for changeover.
         
@@ -102,18 +103,23 @@ class ChangeoverHandler:
         1. Same baseSpiritCode as first product
         2. Product with remaining quantity
         3. Product that can be produced on this line
+        4. Product not already produced on this line (BC-09 protection)
         
         Args:
             line_code: Line code
             first_product_code: First product code
             available_capacity: Available capacity for second product
             product_remaining: Dict of product_code -> remaining bottles
+            products_on_line: Set of products already produced on this line (for BC-09)
         
         Returns:
             Selected product code or None if no suitable product
         """
         if available_capacity <= 0:
             return None
+        
+        if products_on_line is None:
+            products_on_line = set()
         
         first_product = self.indices.products_by_code.get(first_product_code)
         if not first_product:
@@ -134,6 +140,11 @@ class ChangeoverHandler:
             
             # Skip if same as first product
             if product_code == first_product_code:
+                continue
+            
+            # BC-09 PROTECTION: Skip products already produced on this line
+            # (to avoid discontinuity)
+            if product_code in products_on_line:
                 continue
             
             product = self.indices.products_by_code.get(product_code)
