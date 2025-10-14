@@ -9,12 +9,16 @@ Crew-line mappings:
   - 030212: pack18, pack19
   - 030213: pack08, pack09, pack12, pack16
 
-Constraints:
-- Flexible crew assignment (crews can work on multiple lines)
-- Must maintain "2 double + 2 single" balance:
-  * Exactly 2 lines with 2 crews each (double shift)
-  * Remaining lines: can be single or idle
-  * Not allowed: 3 double + 1 single, or 1 double + 3 single
+Flexible Scheduling Rules:
+- No fixed double-shift pairing requirement
+- Allows:
+  * Some lines running double shifts
+  * Some lines running single shifts
+  * Some lines idle
+- Crew assignment constraints:
+  * Crews can be flexibly assigned to compatible lines
+  * Prefer double shifts (to maximize capacity utilization)
+  * Release crews to other lines after product completion
 """
 
 from typing import Dict, List, Optional
@@ -22,7 +26,7 @@ from .base_region import BaseRegion
 
 
 class NewPackagingCDRegion(BaseRegion):
-    """New packaging C/D region with 2-double-2-single balance."""
+    """New packaging C/D region with flexible crew scheduling."""
     
     def __init__(self):
         line_codes = {'030208', '030209', '030212', '030213'}
@@ -46,9 +50,9 @@ class NewPackagingCDRegion(BaseRegion):
         """Validate new packaging C/D region constraints.
         
         Requirements:
-        1. Exactly 2 lines must have 2 crews (double shift)
-        2. Remaining lines can be single or idle
-        3. Crews must match their designated lines
+        1. Crews must match their designated lines
+        2. Maximum 2 crews per line
+        3. Flexible scheduling: lines can be double shift, single shift, or idle
         """
         # Filter to this region's lines
         region_assignments = {
@@ -63,37 +67,24 @@ class NewPackagingCDRegion(BaseRegion):
                 if crew not in allowed_crews:
                     return False, f"Crew {crew} not allowed on line {line}, allowed: {allowed_crews}"
         
-        # Count lines by number of crews
-        double_lines = []
-        single_lines = []
-        
+        # Check maximum crews per line
         for line in self.line_codes:
             crew_count = len(region_assignments.get(line, []))
-            if crew_count == 2:
-                double_lines.append(line)
-            elif crew_count == 1:
-                single_lines.append(line)
-            elif crew_count > 2:
+            if crew_count > 2:
                 return False, f"Line {line} has {crew_count} crews, max 2 allowed"
         
-        # Must have exactly 2 double lines
-        if len(double_lines) != 2:
-            return False, (
-                f"New packaging C/D requires exactly 2 double lines, "
-                f"got {len(double_lines)}: {double_lines}"
-            )
-        
+        # No fixed double-shift requirement - flexible scheduling allowed
         return True, None
     
     def get_max_idle_lines(self) -> int:
-        """New packaging C/D can have idle lines as long as 2 are double."""
-        # Can have up to 2 idle lines (4 total - 2 double)
-        return 2
+        """New packaging C/D allows flexible idle lines."""
+        # All 4 lines can potentially be idle (flexible scheduling)
+        return 4
     
     def get_constraints_description(self) -> str:
         return (
             "New Packaging C/D Region (Lines 030208, 030209, 030212, 030213): "
-            "Flexible crew assignment, must maintain 2 double + 2 single/idle balance"
+            "Flexible crew assignment, allows double/single/idle lines with no fixed pairing"
         )
     
     def is_crew_allowed_on_line(self, crew_code: str, line_code: str) -> bool:

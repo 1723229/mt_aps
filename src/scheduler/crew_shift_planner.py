@@ -48,6 +48,12 @@ class CrewShiftPlanner:
             ('pack05', 'pack11'),  # 030205线的两个班组
             ('pack06', 'pack13'),  # 030206线的两个班组
         ]
+        
+        # D类区域（新包装C/D区）建议配对（柔性排班，优先双班）
+        # 030213: pack12/pack16建议配对以提高产能
+        self.region_d_pairs = [
+            ('pack12', 'pack16'),  # 030213线的两个高优先级班组
+        ]
     
     def plan_shifts(self) -> Dict[str, Dict[str, str]]:
         """Plan shift assignments for all crews.
@@ -58,6 +64,7 @@ class CrewShiftPlanner:
         - When week changes, crew alternates shift
         - SPECIAL A类: 老包装区固定配对（pack01+pack02, pack10+pack14）同天不同班次
         - SPECIAL C类: 新包装B区强制双班配置
+        - SPECIAL D类: 新包装C/D区建议配对（pack12+pack16）同天不同班次
         
         Returns:
             crew_shift_plan: crew -> date -> 'early' or 'middle'
@@ -125,7 +132,35 @@ class CrewShiftPlanner:
                 self.crew_shift_plan[crew2] = crew2_plan
                 assigned_crews.add(crew2)
         
-        # THIRD: Plan for remaining crews
+        # THIRD: Handle D类区域建议配对（柔性排班）
+        for crew1, crew2 in self.region_d_pairs:
+            if crew1 in self.all_crews and crew2 in self.all_crews:
+                # crew1和crew2建议在不同班次（提高产能利用率）
+                # crew1: 基础班次分配（跨周切换）
+                crew1_plan = {}
+                current_shift = 'early'
+                week_shift = {}
+                for week in weeks:
+                    week_shift[week] = current_shift
+                    # 跨周切换
+                    current_shift = 'middle' if current_shift == 'early' else 'early'
+                
+                for date in self.work_calendar:
+                    week = self.work_week[date]
+                    crew1_plan[date] = week_shift[week]
+                
+                self.crew_shift_plan[crew1] = crew1_plan
+                assigned_crews.add(crew1)
+                
+                # crew2: 与crew1相反的班次（确保可以形成双班）
+                crew2_plan = {}
+                for date in self.work_calendar:
+                    crew2_plan[date] = 'middle' if crew1_plan[date] == 'early' else 'early'
+                
+                self.crew_shift_plan[crew2] = crew2_plan
+                assigned_crews.add(crew2)
+        
+        # FOURTH: Plan for remaining crews
         for crew in self.all_crews:
             if crew in assigned_crews:
                 continue  # Already assigned in C类区域
